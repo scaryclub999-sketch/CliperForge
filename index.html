@@ -1,122 +1,172 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ClipForge AI</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#0b0b0e;color:#eee;font-family:Arial,sans-serif}
-header{padding:20px;border-bottom:1px solid #25252c;display:flex;justify-content:space-between}
-.logo{font-size:22px;font-weight:bold}
-.logo span{color:#999}
-main{max-width:900px;margin:auto;padding:20px}
-.card{background:#15151b;border:1px solid #30303a;border-radius:15px;padding:18px;margin-bottom:18px}
-h2{font-size:18px}
-button{background:#eee;color:#111;border:0;padding:12px;border-radius:9px;font-weight:bold;cursor:pointer}
-input,select,textarea{background:#22222a;color:white;border:1px solid #444;padding:12px;border-radius:8px;width:100%;margin:6px 0}
-video{width:100%;border-radius:10px;background:#000}
-#preview{position:relative}
-#caption{position:absolute;bottom:35px;left:5%;width:90%;text-align:center;font-weight:bold;font-size:22px;color:white;text-shadow:2px 2px 4px black;pointer-events:none}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-small{color:#999}
-button.full{width:100%;margin-top:8px}
+body{margin:0;background:#09090d;color:white;font-family:Arial}
+header{padding:20px;border-bottom:1px solid #292933;color:#a78bfa;font-size:24px;font-weight:bold}
+main{max-width:850px;margin:auto;padding:18px}
+.panel{background:#17171f;border:1px solid #333340;border-radius:14px;padding:17px;margin:16px 0}
+h1{font-size:27px}
+p{color:#aaa}
+input,select,textarea{width:100%;padding:12px;margin:8px 0;background:#252530;color:white;border:1px solid #444;border-radius:8px}
+button{background:#8055ed;color:white;border:0;border-radius:9px;padding:13px;margin:5px 3px;font-weight:bold}
+button:disabled{opacity:.5}
+video{width:100%;background:black;border-radius:10px;margin-top:10px}
+#preview{background:black;padding:12px;text-align:center;font-size:20px;font-weight:bold;white-space:pre-wrap}
+#status{color:#c4a7ff}
 </style>
 </head>
 <body>
-<header>
-<div class="logo">CLIPFORGE <span>AI</span></div>
-<div>✦ Video Studio</div>
-</header>
+<header>✂ ClipForge AI</header>
 <main>
-<div class="card">
-<h2>🎬 Create your clips</h2>
-<small>Upload a long video to get started.</small>
+<h1>Make Shorts from Long Videos</h1>
+<p>Your video clipping studio.</p>
+
+<div class="panel">
+<h3>1. Upload video</h3>
 <input type="file" id="file" accept="video/*">
-<div id="preview" style="display:none">
-<video id="video" controls></video>
-<div id="caption"></div>
-</div>
+<video id="video" controls playsinline></video>
 </div>
 
-<div class="card">
-<h2>✂️ Manual Clip Maker</h2>
-<div class="grid">
-<div>Start (seconds)
+<div class="panel">
+<h3>2. Select clip duration</h3>
+<label>Start time (seconds)</label>
 <input id="start" type="number" value="0" min="0">
-</div>
-<div>End (seconds)
-<input id="end" type="number" value="30" min="0">
-</div>
-</div>
-<button class="full" onclick="playClip()">▶ Preview selected section</button>
+<label>End time (seconds)</label>
+<input id="end" type="number" value="30" min="1">
+<button onclick="playClip()">Preview clip</button>
+<button id="export" onclick="exportClip()">Download video clip</button>
+<p id="status">Upload a video to begin.</p>
 </div>
 
-<div class="card">
-<h2>💬 Captions</h2>
+<div class="panel">
+<h3>3. Multilingual captions</h3>
 <select id="language">
 <option>English</option>
 <option>Hindi</option>
 <option>Urdu</option>
-<option>Roman Urdu</option>
 <option>Hinglish</option>
+<option>Roman Urdu</option>
 <option>Arabic</option>
 <option>Spanish</option>
-<option>French</option>
-<option>Other</option>
 </select>
-<textarea id="text" rows="3" placeholder="Write your captions here..."></textarea>
-<button class="full" onclick="updateCaption()">Show captions</button>
+<textarea id="caption" rows="3" placeholder="Write your captions here..."></textarea>
+<div id="preview">Caption preview</div>
 </div>
 
-<div class="card">
-<h2>🎨 Caption Style</h2>
-<div class="grid">
-<div>Text color
-<input id="color" type="color" value="#ffffff">
-</div>
-<div>Font size
-<input id="size" type="number" value="22">
-</div>
-</div>
-<button class="full" onclick="styleCaption()">Apply style</button>
-</div>
-
-<div class="card">
-<h2>✨ AI Tools</h2>
-<button class="full" onclick="alert('AI highlight detection will be added in the next development stage.')">Find interesting moments with AI</button>
-<button class="full" onclick="alert('AI speech transcription and translation will be added in the next development stage.')">Transcribe / Translate speech</button>
-<button class="full" onclick="alert('Video exporting will be added in the next development stage.')">Export clip</button>
+<div class="panel">
+<h3>4. Export captions</h3>
+<button onclick="saveCaption()">Download captions TXT</button>
+<p>Automatic AI transcription and translation will be added in a later stage.</p>
 </div>
 </main>
+
 <script>
-const file=document.getElementById('file');
-const video=document.getElementById('video');
-file.onchange=()=>{
- if(file.files[0]){
- video.src=URL.createObjectURL(file.files[0]);
- document.getElementById('preview').style.display='block';
- }
+const $=id=>document.getElementById(id);
+let recording=false;
+
+$("file").onchange=()=>{
+ const f=$("file").files[0];
+ if(!f)return;
+ $("video").src=URL.createObjectURL(f);
+ $("video").load();
+ $("status").textContent="Video loaded!";
 };
-function playClip(){
- const s=Number(document.getElementById('start').value);
- const e=Number(document.getElementById('end').value);
- if(!video.src){alert('Upload a video first.');return;}
- if(e<=s){alert('End time must be greater than start time.');return;}
- video.currentTime=s;
- video.play();
- const stop=()=>{
-  if(video.currentTime>=e){video.pause();video.removeEventListener('timeupdate',stop);}
- };
- video.addEventListener('timeupdate',stop);
+
+$("caption").oninput=()=>{
+ $("preview").textContent=$("caption").value||"Caption preview";
+};
+
+function times(){
+ const v=$("video");
+ const s=Number($("start").value);
+ const e=Number($("end").value);
+ if(!v.src||!Number.isFinite(v.duration)){
+  throw Error("Upload a video first.");
+ }
+ if(s<0||e<=s||e>v.duration){
+  throw Error("Choose valid start and end times.");
+ }
+ return {v,s,e};
 }
-function updateCaption(){
- document.getElementById('caption').textContent=document.getElementById('text').value;
+
+async function playClip(){
+ try{
+  const {v,s}=times();
+  v.currentTime=s;
+  await v.play();
+  const stop=()=>{
+   if(v.currentTime>=Number($("end").value)){
+    v.pause();v.removeEventListener("timeupdate",stop);
+   }
+  };
+  v.addEventListener("timeupdate",stop);
+ }catch(err){alert(err.message)}
 }
-function styleCaption(){
- const c=document.getElementById('caption');
- c.style.color=document.getElementById('color').value;
- c.style.fontSize=document.getElementById('size').value+'px';
+
+async function exportClip(){
+ if(recording)return;
+ let recorder,stream,timer;
+ const btn=$("export");
+ try{
+  const {v,s,e}=times();
+  if(!v.captureStream||!window.MediaRecorder){
+   throw Error("Your browser does not support video recording.");
+  }
+  recording=true;btn.disabled=true;
+  $("status").textContent="Preparing clip...";
+  v.pause();
+  v.currentTime=s;
+  await new Promise(resolve=>{
+   v.addEventListener("seeked",resolve,{once:true});
+  });
+  stream=v.captureStream();
+  const mime=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
+  if(!mime)throw Error("WebM recording is not supported.");
+  const chunks=[];
+  recorder=new MediaRecorder(stream,{mimeType:mime});
+  recorder.ondataavailable=ev=>{if(ev.data.size)chunks.push(ev.data)};
+  const finished=new Promise((resolve,reject)=>{
+   recorder.onstop=resolve;
+   recorder.onerror=()=>reject(Error("Recording failed."));
+  });
+  recorder.start();
+  await v.play();
+  $("status").textContent="Recording clip... Keep this page open.";
+  timer=setInterval(()=>{
+   if(v.currentTime>=e){
+    clearInterval(timer);v.pause();recorder.stop();
+   }
+  },100);
+  await finished;
+  const blob=new Blob(chunks,{type:"video/webm"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="clipforge-short.webm";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  $("status").textContent="Your clip is ready!";
+ }catch(err){
+  clearInterval(timer);
+  if(recorder&&recorder.state!=="inactive")recorder.stop();
+  $("status").textContent=err.message;
+ }finally{
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  recording=false;btn.disabled=false;
+ }
+}
+
+function saveCaption(){
+ const blob=new Blob([$("caption").value],{type:"text/plain;charset=utf-8"});
+ const a=document.createElement("a");
+ const url=URL.createObjectURL(blob);
+ a.href=url;a.download="captions.txt";a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 </script>
 </body>
