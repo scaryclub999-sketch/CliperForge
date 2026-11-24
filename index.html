@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipForge AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0b0e;color:#eee;font-family:Arial,sans-serif}
+header{padding:20px;border-bottom:1px solid #25252c;display:flex;justify-content:space-between}
+.logo{font-size:22px;font-weight:bold}
+.logo span{color:#999}
+main{max-width:900px;margin:auto;padding:20px}
+.card{background:#15151b;border:1px solid #30303a;border-radius:15px;padding:18px;margin-bottom:18px}
+h2{font-size:18px}
+button{background:#eee;color:#111;border:0;padding:12px;border-radius:9px;font-weight:bold;cursor:pointer}
+input,select,textarea{background:#22222a;color:white;border:1px solid #444;padding:12px;border-radius:8px;width:100%;margin:6px 0}
+video{width:100%;border-radius:10px;background:#000}
+#preview{position:relative}
+#caption{position:absolute;bottom:35px;left:5%;width:90%;text-align:center;font-weight:bold;font-size:22px;color:white;text-shadow:2px 2px 4px black;pointer-events:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+small{color:#999}
+button.full{width:100%;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">CLIPFORGE <span>AI</span></div>
+<div>✦ Video Studio</div>
+</header>
+<main>
+<div class="card">
+<h2>🎬 Create your clips</h2>
+<small>Upload a long video to get started.</small>
+<input type="file" id="file" accept="video/*">
+<div id="preview" style="display:none">
+<video id="video" controls></video>
+<div id="caption"></div>
+</div>
+</div>
+
+<div class="card">
+<h2>✂️ Manual Clip Maker</h2>
+<div class="grid">
+<div>Start (seconds)
+<input id="start" type="number" value="0" min="0">
+</div>
+<div>End (seconds)
+<input id="end" type="number" value="30" min="0">
+</div>
+</div>
+<button class="full" onclick="playClip()">▶ Preview selected section</button>
+</div>
+
+<div class="card">
+<h2>💬 Captions</h2>
+<select id="language">
+<option>English</option>
+<option>Hindi</option>
+<option>Urdu</option>
+<option>Roman Urdu</option>
+<option>Hinglish</option>
+<option>Arabic</option>
+<option>Spanish</option>
+<option>French</option>
+<option>Other</option>
+</select>
+<textarea id="text" rows="3" placeholder="Write your captions here..."></textarea>
+<button class="full" onclick="updateCaption()">Show captions</button>
+</div>
+
+<div class="card">
+<h2>🎨 Caption Style</h2>
+<div class="grid">
+<div>Text color
+<input id="color" type="color" value="#ffffff">
+</div>
+<div>Font size
+<input id="size" type="number" value="22">
+</div>
+</div>
+<button class="full" onclick="styleCaption()">Apply style</button>
+</div>
+
+<div class="card">
+<h2>✨ AI Tools</h2>
+<button class="full" onclick="alert('AI highlight detection will be added in the next development stage.')">Find interesting moments with AI</button>
+<button class="full" onclick="alert('AI speech transcription and translation will be added in the next development stage.')">Transcribe / Translate speech</button>
+<button class="full" onclick="alert('Video exporting will be added in the next development stage.')">Export clip</button>
+</div>
+</main>
+<script>
+const file=document.getElementById('file');
+const video=document.getElementById('video');
+file.onchange=()=>{
+ if(file.files[0]){
+ video.src=URL.createObjectURL(file.files[0]);
+ document.getElementById('preview').style.display='block';
+ }
+};
+function playClip(){
+ const s=Number(document.getElementById('start').value);
+ const e=Number(document.getElementById('end').value);
+ if(!video.src){alert('Upload a video first.');return;}
+ if(e<=s){alert('End time must be greater than start time.');return;}
+ video.currentTime=s;
+ video.play();
+ const stop=()=>{
+  if(video.currentTime>=e){video.pause();video.removeEventListener('timeupdate',stop);}
+ };
+ video.addEventListener('timeupdate',stop);
+}
+function updateCaption(){
+ document.getElementById('caption').textContent=document.getElementById('text').value;
+}
+function styleCaption(){
+ const c=document.getElementById('caption');
+ c.style.color=document.getElementById('color').value;
+ c.style.fontSize=document.getElementById('size').value+'px';
+}
+</script>
+</body>
+</html>
