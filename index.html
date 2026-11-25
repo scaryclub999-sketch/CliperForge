@@ -3,246 +3,328 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ClipForge AI</title>
+
 <style>
 *{box-sizing:border-box}
-body{margin:0;padding:16px;background:#09090d;color:white;font-family:Arial}
-h1{text-align:center;color:#a78bfa}
-.panel{background:#17171f;border:1px solid #333;padding:16px;border-radius:15px;margin:15px 0}
-label{display:block;margin:13px 0 6px}
-input,select,textarea,button{width:100%;padding:13px;margin:5px 0;border-radius:9px;border:1px solid #444;background:#252530;color:white;font-size:16px}
-textarea{height:75px}
-button{background:#8055ed;border:0;font-weight:bold}
-#screen{position:relative;background:#000;margin-top:12px;overflow:hidden}
-video{width:100%;display:block}
-#captionPreview{position:absolute;bottom:12%;left:4%;width:92%;text-align:center;font-size:32px;font-weight:1000;overflow-wrap:anywhere;pointer-events:none}
-.bold{color:#ffe600;-webkit-text-stroke:1px black;text-shadow:3px 3px black}
-.gradient{background:linear-gradient(90deg,#ff4d6d,#ffdc4d,#50e3c2);background-clip:text;-webkit-background-clip:text;color:transparent;-webkit-text-stroke:1px black;filter:drop-shadow(2px 3px black)}
-.neon{color:#ff55ee;text-shadow:0 0 5px #ff55ee,0 0 15px #ff55ee,2px 2px black}
-.highlight{color:white;background:#7c3aed;padding:5px 9px;border-radius:7px;text-shadow:2px 2px black}
-.clean{color:white;text-shadow:2px 2px 5px black}
-small{color:#aaa}
+body{
+  margin:0;background:#090909;color:#fff;
+  font-family:Arial,sans-serif;padding:20px;
+}
+header{text-align:center;margin:20px 0 30px}
+h1{font-size:32px;margin:0}
+h1 span{color:#a855f7}
+p{color:#aaa}
+.container{max-width:750px;margin:auto}
+.panel{
+  background:#171717;border:1px solid #303030;
+  padding:18px;border-radius:15px;margin-bottom:18px;
+}
+button,.upload{
+  background:#9333ea;color:white;border:0;
+  padding:13px 17px;border-radius:9px;
+  font-weight:bold;cursor:pointer;margin:5px 3px;
+}
+button:disabled{opacity:.5}
+input,textarea,select{
+  width:100%;padding:12px;background:#242424;
+  color:white;border:1px solid #444;
+  border-radius:8px;margin:8px 0;
+}
+video{width:100%;border-radius:10px;margin-top:12px}
+textarea{min-height:120px;resize:vertical}
+#status{color:#c084fc;font-size:14px}
+.preview{
+  min-height:110px;background:#080808;
+  border-radius:10px;display:flex;
+  align-items:center;justify-content:center;
+  text-align:center;padding:15px;margin-top:12px;
+}
+.caption{
+  font-size:23px;font-weight:900;
+  text-shadow:2px 2px 5px black;
+}
+.bold{color:white}
+.gradient{
+  background:linear-gradient(90deg,#f0abfc,#60a5fa);
+  color:transparent;background-clip:text;
+}
+.neon{color:#fff;text-shadow:0 0 8px #a855f7,0 0 18px #a855f7}
+.highlight{background:#9333ea;padding:5px 9px;border-radius:5px}
+.clean{font-size:19px;font-weight:600}
+small{color:#888}
 </style>
 </head>
+
 <body>
+<div class="container">
 
-<h1>⚡ ClipForge AI</h1>
-
-<div class="panel">
-<h2>1. Upload video</h2>
-<input type="file" id="upload" accept="video/*">
-<div id="screen">
-<video id="video" controls playsinline></video>
-<div id="captionPreview" class="bold">YOUR CAPTION!</div>
-</div>
-</div>
+<header>
+  <h1>CLIP<span>FORGE</span> AI</h1>
+  <p>Make clips. Create captions. Your creativity, your style.</p>
+</header>
 
 <div class="panel">
-<h2>2. Caption designer</h2>
-
-<label>Caption text</label>
-<textarea id="caption">YOUR CAPTION!</textarea>
-
-<label>Choose a template</label>
-<select id="style">
-<option value="bold">Bold Pop</option>
-<option value="gradient">Color Gradient</option>
-<option value="neon">Neon Glow</option>
-<option value="highlight">Highlight Box</option>
-<option value="clean">Clean Subtitles</option>
-</select>
-
-<label>Custom text color</label>
-<input type="color" id="color" value="#ffe600">
-
-<label>Text size</label>
-<input type="range" id="size" min="18" max="60" value="32">
-
-<label>Caption position</label>
-<select id="position">
-<option value="12">Bottom</option>
-<option value="45">Middle</option>
-<option value="75">Top</option>
-</select>
+  <h3>1. Upload your video</h3>
+  <input type="file" id="upload" accept="video/*">
+  <video id="video" controls playsinline></video>
 </div>
 
 <div class="panel">
-<h2>3. Clip duration</h2>
-<label>Start time (seconds)</label>
-<input type="number" id="start" value="0" min="0">
-<label>End time (seconds)</label>
-<input type="number" id="end" value="10" min="1">
-<button id="export">Export captioned clip</button>
-<p id="status">Upload a video to begin.</p>
+  <h3>2. AI automatic captions</h3>
+  <p>Whisper AI will listen to your video's audio and create a transcript.</p>
+  <button id="transcribe">Generate AI Captions</button>
+  <p id="status">Waiting for video...</p>
+  <textarea id="transcript" placeholder="Your transcript will appear here..."></textarea>
 </div>
 
-<script>
-const $=id=>document.getElementById(id);
-const video=$("video");
-const preview=$("captionPreview");
+<div class="panel">
+  <h3>3. Caption design</h3>
+  <select id="style">
+    <option value="bold">Bold Pop</option>
+    <option value="gradient">Color Gradient</option>
+    <option value="neon">Neon Glow</option>
+    <option value="highlight">Highlight Box</option>
+    <option value="clean">Clean Subtitles</option>
+  </select>
 
-$("upload").onchange=()=>{
- const file=$("upload").files[0];
- if(file){
-  video.src=URL.createObjectURL(file);
-  $("status").textContent="Video loaded!";
- }
-};
+  <div class="preview">
+    <div id="caption" class="caption bold">YOUR CAPTIONS</div>
+  </div>
+</div>
 
-function updatePreview(){
- const style=$("style").value;
- preview.textContent=$("caption").value;
- preview.className=style;
- preview.style.fontSize=$("size").value+"px";
- preview.style.bottom=$("position").value+"%";
- preview.style.color=style==="bold"||style==="clean"?$("color").value:"";
- if(style==="bold")preview.style.color=$("color").value;
-}
-["caption","style","color","size","position"].forEach(id=>{
- $(id).addEventListener("input",updatePreview);
+<div class="panel">
+  <h3>4. Make a video clip</h3>
+  <label>Start time (seconds)</label>
+  <input type="number" id="start" value="0" min="0">
+  <label>End time (seconds)</label>
+  <input type="number" id="end" value="30" min="1">
+  <button id="export">Export Video Clip</button>
+  <p id="exportStatus"></p>
+</div>
+
+</div>
+
+<script type="module">
+import { pipeline } from
+"https://cdn.jsdelivr.net/npm/@huggingface/transformers";
+
+const upload = document.getElementById("upload");
+const video = document.getElementById("video");
+const status = document.getElementById("status");
+const transcript = document.getElementById("transcript");
+const caption = document.getElementById("caption");
+
+let videoURL = null;
+let transcriber = null;
+let wordChunks = [];
+
+upload.addEventListener("change", () => {
+  const file = upload.files[0];
+  if (!file) return;
+
+  if (videoURL) URL.revokeObjectURL(videoURL);
+  videoURL = URL.createObjectURL(file);
+  video.src = videoURL;
+
+  transcript.value = "";
+  wordChunks = [];
+  status.textContent = "Video ready!";
 });
-updatePreview();
 
-$("export").onclick=async()=>{
- const status=$("status");
- const start=Number($("start").value);
- const end=Number($("end").value);
+document.getElementById("style").addEventListener("change", e => {
+  caption.className = "caption " + e.target.value;
+});
 
- if(!video.src){status.textContent="Upload a video first.";return;}
- if(!video.videoWidth||!Number.isFinite(video.duration)){
-  status.textContent="Wait for the video to load.";return;
- }
- if(start<0||end<=start||end>video.duration){
-  status.textContent="Enter valid start and end times.";return;
- }
- if(!video.captureStream||!window.MediaRecorder){
-  status.textContent="Video export is not supported in this browser.";return;
- }
+transcript.addEventListener("input", () => {
+  caption.textContent = transcript.value || "YOUR CAPTIONS";
+});
 
- const canvas=document.createElement("canvas");
- canvas.width=video.videoWidth;
- canvas.height=video.videoHeight;
- const ctx=canvas.getContext("2d");
- const stream=canvas.captureStream(30);
+video.addEventListener("timeupdate", () => {
+  if (!wordChunks.length) return;
 
- try{
-  const source=video.captureStream();
-  source.getAudioTracks().forEach(t=>stream.addTrack(t));
- }catch(e){
-  status.textContent="Audio capture is not supported.";return;
- }
+  const current = wordChunks.find(chunk =>
+    video.currentTime >= chunk.timestamp[0] &&
+    video.currentTime <= chunk.timestamp[1]
+  );
 
- let recorder;
- try{recorder=new MediaRecorder(stream);}
- catch(e){status.textContent="Could not start export.";return;}
+  if (current) caption.textContent = current.text;
+});
 
- const chunks=[];
- recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
- recorder.onstop=()=>{
-  const blob=new Blob(chunks,{type:"video/webm"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="ClipForge.webm";
-  a.click();
-  status.textContent="Your clip is ready!";
-  setTimeout(()=>URL.revokeObjectURL(url),30000);
- };
-
- function draw(){
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  const text=$("caption").value;
-  const selected=$("style").value;
-  const font=Number($("size").value)*2;
-  const y=canvas.height*(1-Number($("position").value)/100);
-  const x=canvas.width/2;
-
-  ctx.font="bold "+font+"px Arial";
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
-  ctx.lineJoin="round";
-
-  const max=canvas.width*.9;
-  const lines=[];
-  let line="";
-  text.split(/\s+/).forEach(word=>{
-   const test=line?line+" "+word:word;
-   if(ctx.measureText(test).width>max&&line){
-    lines.push(line);line=word;
-   }else line=test;
-  });
-  if(line)lines.push(line);
-
-  const lineHeight=font*1.15;
-  const firstY=y-(lines.length-1)*lineHeight/2;
-
-  lines.forEach((txt,i)=>{
-   const yy=firstY+i*lineHeight;
-   let fill=$("color").value;
-   if(selected==="bold")fill="#ffe600";
-   if(selected==="gradient"){
-    const g=ctx.createLinearGradient(0,0,canvas.width,0);
-    g.addColorStop(0,"#ff4d6d");
-    g.addColorStop(.5,"#ffdc4d");
-    g.addColorStop(1,"#50e3c2");
-    fill=g;
-   }
-   if(selected==="neon")fill="#ff55ee";
-   if(selected==="highlight")fill="white";
-   if(selected==="clean")fill="white";
-
-   if(selected==="highlight"){
-    const width=ctx.measureText(txt).width+24;
-    ctx.fillStyle="#7c3aed";
-    ctx.fillRect(x-width/2,yy-font*.55,width,font*1.1);
-   }
-
-   ctx.lineWidth=font*.1;
-   ctx.strokeStyle="black";
-   if(selected!=="highlight")ctx.strokeText(txt,x,yy);
-   ctx.fillStyle=fill;
-   ctx.fillText(txt,x,yy);
-  });
- }
-
- let stopped=false;
- let animation;
-
- function render(){
-  if(stopped)return;
-  draw();
-  if(video.currentTime>=end){
-   stopped=true;
-   video.pause();
-   cancelAnimationFrame(animation);
-   if(recorder.state==="recording")recorder.stop();
-   return;
+document.getElementById("transcribe").addEventListener("click", async () => {
+  if (!upload.files[0]) {
+    status.textContent = "Upload a video first!";
+    return;
   }
-  animation=requestAnimationFrame(render);
- }
 
- status.textContent="Preparing video...";
- try{
-  video.pause();
-  video.currentTime=start;
-  await new Promise((resolve,reject)=>{
-   const timeout=setTimeout(()=>reject(new Error("Seek timeout")),10000);
-   video.addEventListener("seeked",()=>{
-    clearTimeout(timeout);resolve();
-   },{once:true});
-  });
-  recorder.start();
-  await video.play();
-  status.textContent="Exporting...";
-  render();
- }catch(e){
-  stopped=true;
-  cancelAnimationFrame(animation);
-  if(recorder.state==="recording")recorder.stop();
-  status.textContent="Export failed. Try Chrome again.";
- }
-};
+  const button = document.getElementById("transcribe");
+  button.disabled = true;
+
+  try {
+    status.textContent = "Loading AI model... First download may take time.";
+
+    if (!transcriber) {
+      transcriber = await pipeline(
+        "automatic-speech-recognition",
+        "onnx-community/whisper-tiny",
+        { dtype: "q8" }
+      );
+    }
+
+    status.textContent = "Preparing video audio...";
+
+    if (!video.captureStream) {
+      throw new Error("Your browser does not support video audio capture.");
+    }
+
+    video.pause();
+    video.currentTime = 0;
+    await new Promise(resolve => {
+      if (video.readyState >= 2) resolve();
+      else video.addEventListener("loadeddata", resolve, {once:true});
+    });
+
+    const stream = video.captureStream();
+    const audioTracks = stream.getAudioTracks();
+
+    if (!audioTracks.length) {
+      throw new Error("No audio track found in this video.");
+    }
+
+    const audioStream = new MediaStream(audioTracks);
+    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : "audio/webm";
+
+    const recorder = new MediaRecorder(audioStream, {mimeType:mime});
+    const pieces = [];
+
+    recorder.ondataavailable = e => {
+      if (e.data.size) pieces.push(e.data);
+    };
+
+    const recordingFinished = new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = () => reject(new Error("Audio recording failed."));
+    });
+
+    recorder.start();
+    status.textContent = "Listening to video audio...";
+
+    await video.play();
+
+    await new Promise(resolve => {
+      video.addEventListener("ended", resolve, {once:true});
+    });
+
+    recorder.stop();
+    await recordingFinished;
+    stream.getTracks().forEach(track => track.stop());
+
+    const audioBlob = new Blob(pieces, {type:mime});
+    const audioURL = URL.createObjectURL(audioBlob);
+
+    status.textContent = "AI is creating your captions...";
+
+    const result = await transcriber(audioURL, {
+      return_timestamps: "word",
+      chunk_length_s: 30,
+      stride_length_s: 5
+    });
+
+    URL.revokeObjectURL(audioURL);
+
+    transcript.value = result.text || "";
+    wordChunks = result.chunks || [];
+    caption.textContent = transcript.value || "No speech detected.";
+
+    status.textContent = "Transcription complete!";
+    video.currentTime = 0;
+
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Error: " + error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById("export").addEventListener("click", async () => {
+  const exportStatus = document.getElementById("exportStatus");
+
+  if (!upload.files[0]) {
+    exportStatus.textContent = "Upload a video first!";
+    return;
+  }
+
+  const start = Number(document.getElementById("start").value);
+  const end = Number(document.getElementById("end").value);
+
+  if (start < 0 || end <= start || end > video.duration) {
+    exportStatus.textContent = "Check your start and end times.";
+    return;
+  }
+
+  try {
+    video.pause();
+    video.currentTime = start;
+
+    await new Promise(resolve =>
+      video.addEventListener("seeked", resolve, {once:true})
+    );
+
+    const stream = video.captureStream();
+
+    if (!stream.getVideoTracks().length) {
+      throw new Error("Video recording is not supported.");
+    }
+
+    const recorder = new MediaRecorder(stream);
+    const pieces = [];
+
+    recorder.ondataavailable = e => {
+      if (e.data.size) pieces.push(e.data);
+    };
+
+    const finished = new Promise(resolve => {
+      recorder.onstop = resolve;
+    });
+
+    recorder.start();
+    await video.play();
+
+    await new Promise(resolve => {
+      const check = () => {
+        if (video.currentTime >= end || video.ended) {
+          video.pause();
+          resolve();
+        } else {
+          requestAnimationFrame(check);
+        }
+      };
+      check();
+    });
+
+    recorder.stop();
+    await finished;
+    stream.getTracks().forEach(track => track.stop());
+
+    const blob = new Blob(pieces, {type:recorder.mimeType});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ClipForge-clip.webm";
+    link.click();
+
+    exportStatus.textContent = "Clip exported!";
+    video.currentTime = start;
+
+  } catch (error) {
+    exportStatus.textContent = "Export error: " + error.message;
+  }
+});
 </script>
+
 </body>
 </html>
