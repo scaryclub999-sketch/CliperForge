@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ClipForge AI</title>
 <style>
 *{box-sizing:border-box}
@@ -15,7 +15,7 @@ h1 span{color:#a855f7}
 p{color:#aaa}
 .panel{background:#171717;border:1px solid #303030;padding:18px;border-radius:15px;margin-bottom:18px}
 input,textarea,select{width:100%;padding:12px;background:#242424;color:white;border:1px solid #444;border-radius:8px;margin:8px 0}
-button{background:#9333ea;color:white;border:0;padding:13px 17px;border-radius:9px;font-weight:bold;margin:5px 0;cursor:pointer}
+button{background:#9333ea;color:white;border:0;padding:13px 17px;border-radius:9px;font-weight:bold;margin:5px 0}
 button:disabled{opacity:.5}
 video{width:100%;border-radius:10px;margin-top:12px}
 textarea{min-height:120px}
@@ -89,10 +89,13 @@ const caption=document.getElementById("caption");
 
 let videoURL=null;
 let transcriber=null;
+let audioContext=null;
+let audioDestination=null;
 
 upload.addEventListener("change",()=>{
  const file=upload.files[0];
  if(!file)return;
+
  if(videoURL)URL.revokeObjectURL(videoURL);
  videoURL=URL.createObjectURL(file);
  video.src=videoURL;
@@ -117,7 +120,8 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
 
  const button=document.getElementById("transcribe");
  button.disabled=true;
- let stream=null;
+
+ let recorder=null;
  let audioURL=null;
 
  try{
@@ -131,36 +135,54 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
    );
   }
 
-  status.textContent="Preparing video audio...";
+  status.textContent="Setting up audio...";
 
-  const capture=video.captureStream||video.mozCaptureStream;
-  if(!capture)throw new Error("This browser does not support audio capture.");
+  if(!window.AudioContext){
+   throw new Error("Audio processing is not supported.");
+  }
+
+  if(!audioContext){
+   audioContext=new AudioContext();
+
+   const source=audioContext.createMediaElementSource(video);
+   audioDestination=audioContext.createMediaStreamDestination();
+
+   source.connect(audioDestination);
+   source.connect(audioContext.destination);
+  }
+
+  await audioContext.resume();
 
   video.pause();
   video.currentTime=0;
 
-  if(video.readyState<2){
-   await new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>reject(new Error("Video loading timed out.")),15000);
-    video.addEventListener("loadeddata",()=>{
-     clearTimeout(timer);
-     resolve();
-    },{once:true});
+  await new Promise((resolve,reject)=>{
+   if(video.readyState>=2){
+    resolve();
+    return;
+   }
+
+   const timer=setTimeout(()=>{
+    reject(new Error("Video loading timed out."));
+   },15000);
+
+   video.addEventListener("loadeddata",()=>{
+    clearTimeout(timer);
+    resolve();
+   },{once:true});
   });
+
+  const audioStream=audioDestination.stream;
+
+  if(!audioStream.getAudioTracks().length){
+   throw new Error("Audio track not available.");
   }
 
-  stream=capture.call(video);
-  const audioTracks=stream.getAudioTracks();
-
-  if(!audioTracks.length){
-   throw new Error("No audio track detected.");
-  }
-
-  const audioStream=new MediaStream(audioTracks);
   const mime=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
    ?"audio/webm;codecs=opus":"audio/webm";
 
-  const recorder=new MediaRecorder(audioStream,{mimeType:mime});
+  recorder=new MediaRecorder(audioStream,{mimeType:mime});
+
   const pieces=[];
 
   recorder.ondataavailable=e=>{
@@ -173,49 +195,55 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
   });
 
   recorder.start();
-
   status.textContent="Recording video audio...";
 
   await video.play();
 
   await new Promise((resolve,reject)=>{
    let done=false;
+
    const finish=()=>{
     if(done)return;
     done=true;
+    video.removeEventListener("ended",finish);
+    video.removeEventListener("timeupdate",check);
     resolve();
    };
 
    const check=()=>{
-    if(video.ended||video.currentTime>=video.duration-0.1)finish();
+    if(video.ended ||
+       (video.duration && video.currentTime>=video.duration-0.1)){
+     finish();
+    }
    };
 
+   video.addEventListener("ended",finish);
    video.addEventListener("timeupdate",check);
-   video.addEventListener("ended",finish,{once:true});
-   video.addEventListener("error",()=>reject(new Error("Video playback error.")),{once:true});
 
-   const timeout=Math.max(20000,(video.duration+15)*1000);
    setTimeout(()=>{
     if(!done)reject(new Error("Audio recording timed out."));
-   },timeout);
+   },Math.max(25000,(video.duration+20)*1000));
   });
 
   recorder.stop();
   await finished;
 
-  stream.getTracks().forEach(t=>t.stop());
-  stream=null;
-
   const blob=new Blob(pieces,{type:mime});
-  if(!blob.size)throw new Error("No audio was recorded.");
+
+  if(!blob.size){
+   throw new Error("No audio was recorded.");
+  }
 
   audioURL=URL.createObjectURL(blob);
-  status.textContent="Transcribing speech with AI...";
+  status.textContent="AI is transcribing speech...";
 
-  const result=await transcriber(audioURL);
+  const result=await transcriber(audioURL,{
+   return_timestamps:"word"
+  });
 
   transcript.value=result.text||"";
   caption.textContent=transcript.value||"No speech detected.";
+
   status.textContent="Transcription complete!";
   video.currentTime=0;
 
@@ -223,17 +251,19 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
   console.error(error);
   status.textContent="Error: "+error.message;
  }finally{
-  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(recorder && recorder.state!=="inactive"){
+   recorder.stop();
+  }
   if(audioURL)URL.revokeObjectURL(audioURL);
   button.disabled=false;
  }
 });
 
 document.getElementById("export").addEventListener("click",async()=>{
- const exportStatus=document.getElementById("exportStatus");
+ const output=document.getElementById("exportStatus");
 
  if(!upload.files[0]){
-  exportStatus.textContent="Upload a video first!";
+  output.textContent="Upload a video first!";
   return;
  }
 
@@ -241,22 +271,22 @@ document.getElementById("export").addEventListener("click",async()=>{
  const end=Number(document.getElementById("end").value);
 
  if(!Number.isFinite(video.duration)||start<0||end<=start||end>video.duration){
-  exportStatus.textContent="Check your start and end times.";
+  output.textContent="Check your start and end times.";
   return;
  }
 
  let stream=null;
 
  try{
+  const capture=video.captureStream||video.mozCaptureStream;
+  if(!capture)throw new Error("Video export is not supported here.");
+
   video.pause();
   video.currentTime=start;
 
   await new Promise(resolve=>{
    video.addEventListener("seeked",resolve,{once:true});
   });
-
-  const capture=video.captureStream||video.mozCaptureStream;
-  if(!capture)throw new Error("Video capture is not supported.");
 
   stream=capture.call(video);
   const recorder=new MediaRecorder(stream);
@@ -294,11 +324,10 @@ document.getElementById("export").addEventListener("click",async()=>{
   link.click();
 
   setTimeout(()=>URL.revokeObjectURL(url),10000);
-  exportStatus.textContent="Clip exported!";
-  video.currentTime=start;
+  output.textContent="Clip exported!";
 
  }catch(error){
-  exportStatus.textContent="Export error: "+error.message;
+  output.textContent="Export error: "+error.message;
  }finally{
   if(stream)stream.getTracks().forEach(t=>t.stop());
  }
@@ -306,4 +335,3 @@ document.getElementById("export").addEventListener("click",async()=>{
 </script>
 </body>
 </html>
-
