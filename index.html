@@ -5,67 +5,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ClipForge AI</title>
-
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;padding:16px;background:#090909;
- color:white;font-family:Arial,sans-serif
-}
+body{margin:0;padding:16px;background:#090909;color:white;font-family:Arial}
 .container{max-width:750px;margin:auto}
 header{text-align:center;margin:25px 0}
 h1{font-size:32px;margin:0}
 h1 span{color:#a855f7}
 p{color:#aaa;line-height:1.5}
-.panel{
- background:#171717;border:1px solid #303030;
- padding:18px;border-radius:15px;margin-bottom:18px
-}
-input,textarea,select{
- width:100%;padding:12px;background:#242424;
- color:white;border:1px solid #444;
- border-radius:8px;margin:8px 0
-}
-button{
- background:#9333ea;color:white;border:0;
- padding:13px 17px;border-radius:9px;
- font-weight:bold;margin:5px 0;width:100%
-}
+.panel{background:#171717;border:1px solid #303030;padding:18px;border-radius:15px;margin-bottom:18px}
+input,textarea,select{width:100%;padding:12px;background:#242424;color:white;border:1px solid #444;border-radius:8px;margin:8px 0}
+button{background:#9333ea;color:white;border:0;padding:13px 17px;border-radius:9px;font-weight:bold;margin:5px 0;width:100%}
 button:disabled{opacity:.5}
-video{
- width:100%;border-radius:10px;
- margin-top:12px;background:#000
-}
-textarea{min-height:120px;resize:vertical}
+video{width:100%;border-radius:10px;margin-top:12px;background:#000}
+textarea{min-height:120px}
 #status,#exportStatus{color:#c084fc}
-.preview{
- min-height:110px;background:#080808;
- border-radius:10px;display:flex;
- align-items:center;justify-content:center;
- text-align:center;padding:15px;margin-top:12px
-}
-.caption{
- font-size:23px;font-weight:900;
- text-shadow:2px 2px 5px black;
- overflow-wrap:anywhere
-}
+.preview{min-height:110px;background:#080808;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:15px;margin-top:12px}
+.caption{font-size:23px;font-weight:900;text-shadow:2px 2px 5px black;overflow-wrap:anywhere}
 .bold{color:white}
-.gradient{
- background:linear-gradient(90deg,#f0abfc,#60a5fa);
- color:transparent;background-clip:text
-}
-.neon{
- color:white;
- text-shadow:0 0 8px #a855f7,0 0 18px #a855f7
-}
-.highlight{
- background:#9333ea;padding:5px 9px;border-radius:5px
-}
+.gradient{background:linear-gradient(90deg,#f0abfc,#60a5fa);color:transparent;background-clip:text}
+.neon{color:white;text-shadow:0 0 8px #a855f7,0 0 18px #a855f7}
+.highlight{background:#9333ea;padding:5px 9px;border-radius:5px}
 .clean{font-size:19px;font-weight:600}
 small{color:#888}
 </style>
 </head>
-
 <body>
 <div class="container">
 
@@ -77,7 +41,7 @@ small{color:#888}
 <div class="panel">
 <h3>1. Upload your video</h3>
 <input type="file" id="upload" accept="video/*">
-<video id="video" controls playsinline preload="metadata"></video>
+<video id="video" controls playsinline preload="auto"></video>
 <p id="videoStatus">Choose a video to begin.</p>
 </div>
 
@@ -87,7 +51,7 @@ small{color:#888}
 <button id="transcribe">Generate AI Captions</button>
 <p id="status">Waiting for video...</p>
 <textarea id="transcript" placeholder="Your transcript will appear here..."></textarea>
-<small>Keep this page open while AI processes your video.</small>
+<small>Keep Chrome open while AI processes your video.</small>
 </div>
 
 <div class="panel">
@@ -117,49 +81,91 @@ small{color:#888}
 </div>
 
 <script type="module">
-
 import { pipeline } from
 "https://cdn.jsdelivr.net/npm/@huggingface/transformers";
 
-const upload = document.getElementById("upload");
-const video = document.getElementById("video");
-const status = document.getElementById("status");
-const transcript = document.getElementById("transcript");
-const caption = document.getElementById("caption");
-const videoStatus = document.getElementById("videoStatus");
+const upload=document.getElementById("upload");
+const video=document.getElementById("video");
+const status=document.getElementById("status");
+const transcript=document.getElementById("transcript");
+const caption=document.getElementById("caption");
 
-let videoURL = null;
-let transcriber = null;
-let audioContext = null;
-let audioDestination = null;
-let audioSource = null;
-let busy = false;
+let videoURL=null;
+let transcriber=null;
+let audioContext=null;
+let audioDestination=null;
+let busy=false;
+let exporting=false;
 
-function waitForEvent(element,eventName,timeout=20000){
+function waitForMetadata(){
  return new Promise((resolve,reject)=>{
+  if(video.readyState>=1 && Number.isFinite(video.duration)){
+   resolve();
+   return;
+  }
+
   const timer=setTimeout(()=>{
    cleanup();
-   reject(new Error("Video loading timed out. Try uploading the video again."));
-  },timeout);
+   reject(new Error("Video metadata did not load. Try selecting the video again."));
+  },30000);
 
   function cleanup(){
    clearTimeout(timer);
-   element.removeEventListener(eventName,onEvent);
-   element.removeEventListener("error",onError);
+   video.removeEventListener("loadedmetadata",check);
+   video.removeEventListener("durationchange",check);
+   video.removeEventListener("error",failed);
   }
 
-  function onEvent(){
+  function check(){
+   if(video.readyState>=1 && Number.isFinite(video.duration)){
+    cleanup();
+    resolve();
+   }
+  }
+
+  function failed(){
+   cleanup();
+   reject(new Error("The browser could not read this video."));
+  }
+
+  video.addEventListener("loadedmetadata",check);
+  video.addEventListener("durationchange",check);
+  video.addEventListener("error",failed);
+  check();
+ });
+}
+
+function seekVideo(time){
+ return new Promise((resolve,reject)=>{
+  if(Math.abs(video.currentTime-time)<0.05){
+   resolve();
+   return;
+  }
+
+  const timer=setTimeout(()=>{
+   cleanup();
+   reject(new Error("Could not move to that video time."));
+  },15000);
+
+  function cleanup(){
+   clearTimeout(timer);
+   video.removeEventListener("seeked",done);
+   video.removeEventListener("error",failed);
+  }
+
+  function done(){
    cleanup();
    resolve();
   }
 
-  function onError(){
+  function failed(){
    cleanup();
-   reject(new Error("The video could not be loaded."));
+   reject(new Error("Video seeking failed."));
   }
 
-  element.addEventListener(eventName,onEvent,{once:true});
-  element.addEventListener("error",onError,{once:true});
+  video.addEventListener("seeked",done);
+  video.addEventListener("error",failed);
+  video.currentTime=time;
  });
 }
 
@@ -169,32 +175,27 @@ upload.addEventListener("change",async()=>{
 
  if(videoURL)URL.revokeObjectURL(videoURL);
 
- videoURL=URL.createObjectURL(file);
  video.pause();
- video.removeAttribute("src");
- video.load();
-
+ videoURL=URL.createObjectURL(file);
  video.src=videoURL;
  video.load();
 
  transcript.value="";
  caption.textContent="YOUR CAPTIONS";
  status.textContent="Waiting for video...";
- videoStatus.textContent="Loading video...";
+ document.getElementById("videoStatus").textContent="Loading video...";
 
  try{
-  if(video.readyState<1){
-   await waitForEvent(video,"loadedmetadata");
-  }
+  await waitForMetadata();
 
-  videoStatus.textContent=
+  document.getElementById("videoStatus").textContent=
    "Video ready! Duration: "+Math.round(video.duration)+" seconds.";
 
   document.getElementById("end").value=
    Math.min(30,Math.floor(video.duration));
 
  }catch(error){
-  videoStatus.textContent=error.message;
+  document.getElementById("videoStatus").textContent=error.message;
  }
 });
 
@@ -214,20 +215,17 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
   return;
  }
 
- if(!window.MediaRecorder){
-  status.textContent="Your browser does not support audio recording.";
-  return;
- }
-
  const button=document.getElementById("transcribe");
  let recorder=null;
  let audioURL=null;
- let finished=null;
 
  busy=true;
  button.disabled=true;
 
  try{
+  status.textContent="Checking video...";
+
+  await waitForMetadata();
 
   status.textContent="Loading AI model...";
 
@@ -239,67 +237,46 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
    );
   }
 
-  status.textContent="Checking video...";
+  status.textContent="Preparing audio...";
 
-  if(video.readyState<1){
-   await waitForEvent(video,"loadedmetadata");
-  }
-
-  if(!Number.isFinite(video.duration)){
-   throw new Error("Video duration could not be detected.");
-  }
-
-  if(!window.AudioContext && !window.webkitAudioContext){
-   throw new Error("Audio processing is not supported.");
-  }
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx)throw new Error("Audio processing is not supported.");
 
   if(!audioContext){
-   const AudioCtx=window.AudioContext||window.webkitAudioContext;
    audioContext=new AudioCtx();
-
    audioDestination=audioContext.createMediaStreamDestination();
 
-   audioSource=audioContext.createMediaElementSource(video);
-   audioSource.connect(audioDestination);
-   audioSource.connect(audioContext.destination);
+   const source=audioContext.createMediaElementSource(video);
+   source.connect(audioDestination);
+   source.connect(audioContext.destination);
   }
 
   await audioContext.resume();
 
+  video.pause();
   video.muted=false;
   video.volume=1;
-  video.pause();
 
-  if(video.currentTime!==0){
-   const seeked=waitForEvent(video,"seeked");
-   video.currentTime=0;
-   await seeked;
-  }
+  await seekVideo(0);
 
-  const audioStream=audioDestination.stream;
-
-  if(!audioStream.getAudioTracks().length){
-   throw new Error("No audio track found in the video.");
-  }
+  if(!window.MediaRecorder)throw new Error("Audio recording is not supported.");
 
   const mime=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
    ?"audio/webm;codecs=opus":"audio/webm";
 
-  recorder=new MediaRecorder(audioStream,{mimeType:mime});
+  recorder=new MediaRecorder(audioDestination.stream,{mimeType:mime});
 
-  const pieces=[];
-
+  const chunks=[];
   recorder.ondataavailable=e=>{
-   if(e.data && e.data.size>0)pieces.push(e.data);
+   if(e.data && e.data.size)chunks.push(e.data);
   };
 
-  finished=new Promise((resolve,reject)=>{
+  const stopped=new Promise((resolve,reject)=>{
    recorder.onstop=resolve;
    recorder.onerror=()=>reject(new Error("Audio recording failed."));
   });
 
   recorder.start();
-
   status.textContent="Recording video audio...";
 
   await video.play();
@@ -307,74 +284,66 @@ document.getElementById("transcribe").addEventListener("click",async()=>{
   await new Promise((resolve,reject)=>{
    let done=false;
 
-   const finish=()=>{
+   function finish(){
     if(done)return;
     done=true;
-    clearTimeout(timer);
+    clearInterval(checker);
+    clearTimeout(safety);
     video.removeEventListener("ended",finish);
-    video.removeEventListener("timeupdate",check);
     resolve();
-   };
+   }
 
-   const check=()=>{
+   const checker=setInterval(()=>{
     if(video.ended || video.currentTime>=video.duration-0.1){
      finish();
     }
-   };
+   },200);
 
-   const timer=setTimeout(()=>{
+   const safety=setTimeout(()=>{
     if(!done){
      done=true;
+     clearInterval(checker);
      video.removeEventListener("ended",finish);
-     video.removeEventListener("timeupdate",check);
-     reject(new Error("Recording timed out."));
+     reject(new Error("Audio recording took too long."));
     }
    },Math.max(30000,(video.duration+30)*1000));
 
    video.addEventListener("ended",finish);
-   video.addEventListener("timeupdate",check);
-   check();
   });
 
   video.pause();
   recorder.stop();
-  await finished;
+  await stopped;
 
-  const blob=new Blob(pieces,{type:mime});
-
-  if(!blob.size){
-   throw new Error("No audio was recorded.");
-  }
+  const blob=new Blob(chunks,{type:mime});
+  if(!blob.size)throw new Error("No audio was recorded.");
 
   audioURL=URL.createObjectURL(blob);
-
   status.textContent="AI is transcribing speech...";
 
   const result=await transcriber(audioURL);
 
   transcript.value=result.text||"";
   caption.textContent=transcript.value||"No speech detected.";
-
   status.textContent="Transcription complete!";
-  video.currentTime=0;
+
+  await seekVideo(0);
 
  }catch(error){
   console.error(error);
   status.textContent="Error: "+error.message;
 
  }finally{
-  if(recorder && recorder.state!=="inactive"){
-   recorder.stop();
-  }
-
+  if(recorder && recorder.state!=="inactive")recorder.stop();
   if(audioURL)URL.revokeObjectURL(audioURL);
-
   button.disabled=false;
   busy=false;
  }
 });
 
 document.getElementById("export").addEventListener("click",async()=>{
+ if(exporting)return;
+
  const output=document.getElementById("exportStatus");
 
  if(!upload.files[0]){
@@ -385,84 +354,101 @@ document.getElementById("export").addEventListener("click",async()=>{
  const start=Number(document.getElementById("start").value);
  const end=Number(document.getElementById("end").value);
 
- if(!Number.isFinite(video.duration)||start<0||
-    end<=start||end>video.duration){
-  output.textContent="Check your start and end times.";
-  return;
- }
-
- const capture=video.captureStream||video.mozCaptureStream;
-
- if(!capture){
-  output.textContent="Video export is not supported by this browser.";
-  return;
- }
-
- let stream=null;
- let recorder=null;
-
  try{
+  await waitForMetadata();
+
+  if(start<0 || end<=start || end>video.duration){
+   throw new Error("Check your start and end times.");
+  }
+
+  const capture=video.captureStream||video.mozCaptureStream;
+  if(!capture)throw new Error("Video export is not supported in this browser.");
+
+  exporting=true;
+  const button=document.getElementById("export");
+  button.disabled=true;
+  output.textContent="Preparing your clip...";
+
   video.pause();
+  video.loop=false;
+  await seekVideo(start);
 
-  const seeked=waitForEvent(video,"seeked");
-  video.currentTime=start;
-  await seeked;
-
-  stream=capture.call(video);
-  recorder=new MediaRecorder(stream);
-
-  const pieces=[];
+  const stream=capture.call(video);
+  const recorder=new MediaRecorder(stream);
+  const chunks=[];
 
   recorder.ondataavailable=e=>{
-   if(e.data && e.data.size>0)pieces.push(e.data);
+   if(e.data && e.data.size)chunks.push(e.data);
   };
 
-  const finished=new Promise(resolve=>{
+  const stopped=new Promise((resolve,reject)=>{
    recorder.onstop=resolve;
+   recorder.onerror=()=>reject(new Error("Clip recording failed."));
   });
 
   recorder.start();
+  output.textContent="Exporting clip...";
 
   await video.play();
 
-  await new Promise(resolve=>{
-   const check=()=>{
-    if(video.currentTime>=end||video.ended){
-     video.pause();
-     resolve();
-    }else{
-     requestAnimationFrame(check);
+  await new Promise((resolve,reject)=>{
+   let finished=false;
+
+   function stopClip(){
+    if(finished)return;
+    finished=true;
+    clearInterval(checker);
+    clearTimeout(safety);
+    video.removeEventListener("ended",stopClip);
+    video.pause();
+    if(recorder.state!=="inactive")recorder.stop();
+    resolve();
+   }
+
+   const checker=setInterval(()=>{
+    if(video.currentTime>=end || video.ended){
+     stopClip();
     }
-   };
-   check();
+   },100);
+
+   const safety=setTimeout(()=>{
+    if(!finished){
+     finished=true;
+     clearInterval(checker);
+     video.removeEventListener("ended",stopClip);
+     video.pause();
+     if(recorder.state!=="inactive")recorder.stop();
+     reject(new Error("Export timed out. Try a shorter clip."));
+    }
+   },Math.max(20000,(end-start)*3000+10000));
+
+   video.addEventListener("ended",stopClip);
   });
 
-  recorder.stop();
-  await finished;
+  await stopped;
 
-  const blob=new Blob(pieces,{type:recorder.mimeType});
+  const blob=new Blob(chunks,{type:recorder.mimeType||"video/webm"});
+  if(!blob.size)throw new Error("The exported clip is empty.");
+
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");
-
   link.href=url;
   link.download="ClipForge-clip.webm";
+  document.body.appendChild(link);
   link.click();
+  link.remove();
 
-  setTimeout(()=>URL.revokeObjectURL(url),10000);
-
-  output.textContent="Clip exported!";
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  output.textContent="Clip exported! Check your Downloads.";
 
  }catch(error){
+  console.error(error);
   output.textContent="Export error: "+error.message;
 
  }finally{
-  if(recorder && recorder.state!=="inactive"){
-   recorder.stop();
-  }
-
-  if(stream){
-   stream.getTracks().forEach(track=>track.stop());
-  }
+  video.pause();
+  exporting=false;
+  document.getElementById("export").disabled=false;
  }
 });
 
